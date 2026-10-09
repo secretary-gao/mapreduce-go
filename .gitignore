@@ -16,3 +16,4 @@ mr-crash-*.txt
 
 # benchmark scratch
 /bench/tmp/
+/bench/bin/
