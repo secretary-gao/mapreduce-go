@@ -58,7 +58,7 @@ run_seq() {
 	"$BIN/mrsequential" "$BIN/wc.so" "$TMP"/data-$set/*.txt
 	local t1=$(now)
 	sort mr-out-0 | cmp -s - "$TMP/ref-$set.sorted" && ok=ok || ok=WRONG
-	printf "%s,sequential,0,%.2f,%.2f,%s\n" "$set" "$(echo "$t1 - $t0" | bc -l)" \
+	printf "%s,sequential,0,%.2f,%.2f,%s,NA\n" "$set" "$(echo "$t1 - $t0" | bc -l)" \
 		"$(echo "$t1 - $t0" | bc -l)" "$ok"
 }
 
@@ -87,12 +87,15 @@ run_dist() {
 	# true job time: when the last output file was finalized. The process
 	# exit time is rounded up to whole seconds by mrcoordinator's Done() poll.
 	local last=$(find . -maxdepth 1 -name 'mr-out-*' -printf '%T@\n' | sort -n | tail -1)
-	printf "%s,distributed,%d,%.2f,%.2f,%s\n" "$set" "$n" \
-		"$(echo "$last - $t0" | bc -l)" "$(echo "$t1 - $t0" | bc -l)" "$ok"
+	# end of the map phase: when the last intermediate file mr-X-Y appeared
+	local mend=$(find . -maxdepth 1 -name 'mr-[0-9]*-[0-9]*' -printf '%T@\n' | sort -n | tail -1)
+	printf "%s,distributed,%d,%.2f,%.2f,%s,%.2f\n" "$set" "$n" \
+		"$(echo "$last - $t0" | bc -l)" "$(echo "$t1 - $t0" | bc -l)" "$ok" \
+		"$(echo "$mend - $t0" | bc -l)"
 }
 
 run() {
-	echo "dataset,mode,workers,job_seconds,exit_seconds,correct"
+	echo "dataset,mode,workers,job_seconds,exit_seconds,correct,map_end_seconds"
 	for set in small large; do
 		reference $set
 		for ((r = 0; r < REPS; r++)); do run_seq $set; done
