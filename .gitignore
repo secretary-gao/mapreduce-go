@@ -1,0 +1,18 @@
+# build outputs
+*.so
+/main/mrcoordinator
+/main/mrworker
+/main/mrsequential
+
+# run-time output and intermediate files
+mr-out-*
+mr-[0-9]*-[0-9]*
+mr-tmp-*
+mr-worker-*
+mr-*-correct.txt
+mr-*-all.txt
+mr-wc-*.txt
+mr-crash-*.txt
+
+# benchmark scratch
+/bench/tmp/
