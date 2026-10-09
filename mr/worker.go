@@ -1,9 +1,11 @@
 package mr
 
 import (
-	"encoding/json"
+	"bufio"
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"log"
 	"net/rpc"
 	"os"
@@ -77,12 +79,14 @@ func doMap(mapf func(string, string) []KeyValue, task TaskReply) {
 		if err != nil {
 			log.Fatalf("cannot create temp file")
 		}
-		enc := json.NewEncoder(tmp)
+		w := bufio.NewWriterSize(tmp, 64*1024)
 		for _, kv := range buckets[r] {
-			enc.Encode(&kv)
+			writeKV(w, kv)
 		}
+		w.Flush()
 		tmp.Close()
 		os.Rename(tmp.Name(), fmt.Sprintf("mr-%d-%d", task.TaskId, r))
+
 	}
 }
 
@@ -94,14 +98,7 @@ func doReduce(reducef func(string, []string) string, task TaskReply) {
 		if err != nil {
 			log.Fatalf("cannot open mr-%d-%d", i, task.TaskId)
 		}
-		dec := json.NewDecoder(f)
-		for {
-			var kv KeyValue
-			if err := dec.Decode(&kv); err != nil {
-				break
-			}
-			kva = append(kva, kv)
-		}
+		kva = readKVs(f, kva)
 		f.Close()
 	}
 	//排序
@@ -178,4 +175,35 @@ func call(rpcname string, args interface{}, reply interface{}) bool {
 	}
 	log.Printf("%d: call failed err %v", os.Getpid(), err)
 	return false
+}
+
+// writeKV appends one key/value pair as <uvarint len><key><uvarint len><value>.
+func writeKV(w *bufio.Writer, kv KeyValue) {
+	var b [binary.MaxVarintLen64]byte
+	n := binary.PutUvarint(b[:], uint64(len(kv.Key)))
+	w.Write(b[:n])
+	w.WriteString(kv.Key)
+	n = binary.PutUvarint(b[:], uint64(len(kv.Value)))
+	w.Write(b[:n])
+	w.WriteString(kv.Value)
+}
+
+// readKVs decodes every pair in f (written by writeKV) and appends it to kva.
+func readKVs(f *os.File, kva []KeyValue) []KeyValue {
+	data, err := io.ReadAll(f)
+	if err != nil {
+		log.Fatalf("cannot read %v", f.Name())
+	}
+	for len(data) > 0 {
+		klen, n := binary.Uvarint(data)
+		data = data[n:]
+		key := string(data[:klen])
+		data = data[klen:]
+		vlen, n := binary.Uvarint(data)
+		data = data[n:]
+		val := string(data[:vlen])
+		data = data[vlen:]
+		kva = append(kva, KeyValue{key, val})
+	}
+	return kva
 }
