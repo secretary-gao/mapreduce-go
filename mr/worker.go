@@ -49,7 +49,7 @@ func Worker(sockname string, mapf func(string, string) []KeyValue,
 			doReduce(reducef, reply)
 			report("reduce", reply.TaskId)
 		case "wait":
-			time.Sleep(time.Second)
+			time.Sleep(100 * time.Millisecond)
 		case "exit":
 			return
 		}
